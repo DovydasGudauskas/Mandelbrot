@@ -1,0 +1,121 @@
+using UnityEngine;
+using UnityEngine.UI;
+using System.IO;
+using System;
+
+public class MandelbrotScript : MonoBehaviour
+{
+    public RawImage MandelBrotImage;
+    public InputField FieldRunImageSize;
+    public InputField FieldRunTestPerPixel;
+
+    public InputField SaveRunImageSize;
+    public InputField SaveRunTestPerPixel;
+
+    public Toggle GradientMode;
+    public Toggle Stop;
+    public Toggle Once;
+
+    public Text FPS;
+    public Text ElapsedTime;
+
+    public Gradient Gradient;
+    [Space(10)]
+    int RunImageSize;
+    int RunTestPerPixel;
+    public bool StopRuntime;
+    public bool RunOnce;
+
+    double MAX = 2;
+    double MIN = -2;
+    double CXADD = 0;
+    double CYADD = 0;
+
+    public void SetRuntimeVariables()
+    {
+        RunImageSize = int.Parse(FieldRunImageSize.text);
+        RunTestPerPixel = int.Parse(FieldRunTestPerPixel.text);
+    }
+
+    Color Black = Color.black;
+    Color White = Color.white;
+    private void RunMandelbrot(int ImageSize, int TestPerPixel, bool Save)
+    {
+        float Performance = Time.realtimeSinceStartup;
+
+        Texture2D Output = new Texture2D(ImageSize, ImageSize, TextureFormat.ARGB32, false);
+        Color[] Colors = new Color[ImageSize* ImageSize];
+        double Size = ImageSize;
+        int Which = 0;
+        for (int y = 0; y < ImageSize; y++)
+        {
+            for (int x = 0; x < ImageSize; x++)
+            {
+                double CX = (x * (MAX - MIN)) / Size + MIN + CXADD;
+                double CY = (y * (MAX - MIN)) / Size + MIN + CYADD;
+                double X = 0;
+                double Y = 0;
+                for (int i = 0; i < TestPerPixel; i++)
+                {
+                    double TEMPX = X;
+                    X = X * X - Y * Y + CX;
+                    if (X > 10.0) { X = 10.0; break; }
+
+                    if (2 * TEMPX * Y + CY > 10.0) { Y = 10.0; break; }
+                    else Y = 2 * TEMPX * Y + CY;
+
+                    if (X * X + Y * Y >= 4)
+                    {
+                        if (GradientMode.isOn) Colors[Which] = Gradient.Evaluate(i / (float)TestPerPixel);
+                        else Colors[Which] = White;
+                        break;
+                    }
+                }
+                if (X * X + Y * Y < 4) Colors[Which] = Black;
+                Which++;
+            }
+        }
+        Output.SetPixels(Colors);
+        Output.Apply();
+        MandelBrotImage.texture = Output;
+        //MandelBrotImage.texture.filterMode = FilterMode.Point;
+        if (Save)
+        {
+            byte[] bytes = Output.EncodeToPNG();
+            File.WriteAllBytes(Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + "\\Mandelbrot.png", bytes);
+            ElapsedTime.text = "Elapsed: " + (Time.realtimeSinceStartup - Performance).ToString() + " sec.";
+        }
+    }
+
+    void Start()
+    {
+        SetRuntimeVariables();
+    }
+
+    public void Save()
+    {
+        RunMandelbrot(int.Parse(SaveRunImageSize.text), int.Parse(SaveRunTestPerPixel.text), true);
+    }
+
+    void Update()
+    {
+        StopRuntime = Stop.isOn;
+        FPS.text ="FPS: "+ (1.0f / Time.smoothDeltaTime).ToString();
+
+        MAX -= Input.GetAxis("Mouse ScrollWheel")* MAX;
+        MIN = -MAX;
+
+        if (Input.GetKey(KeyCode.D)) { CXADD += Time.deltaTime * MAX; }
+        if (Input.GetKey(KeyCode.A)) { CXADD -= Time.deltaTime * MAX; }
+        if (Input.GetKey(KeyCode.W)) { CYADD += Time.deltaTime * MAX; }
+        if (Input.GetKey(KeyCode.S)) { CYADD -= Time.deltaTime * MAX; }
+
+        if (!StopRuntime || Once.isOn)
+        {
+            float Performance = Time.realtimeSinceStartup;
+            if (Once.isOn) Once.isOn = false;
+            RunMandelbrot(RunImageSize, RunTestPerPixel, false);
+            ElapsedTime.text = "Elapsed: " + (Time.realtimeSinceStartup - Performance).ToString() + " sec.";
+        }
+    }
+}
